@@ -1,13 +1,19 @@
 from flask import Flask, jsonify, send_file
 from src.exporter import reddit_api, twitter_api
 from src.auth import get_reddit_instance  # Add this line
+from src.auth import refresh_token_if_needed
 import traceback
 
 app = Flask(__name__)
 
+
 @app.route('/reddit/export', methods=['GET'])
 def reddit_export():
     try:
+        # Refresh token if needed
+        refresh_token_if_needed()
+
+        # Proceed with export
         filename = reddit_api()
         if filename:
             return send_file(filename, as_attachment=True)
