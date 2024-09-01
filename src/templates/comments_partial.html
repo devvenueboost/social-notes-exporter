@@ -1,0 +1,22 @@
+<h3>Comments:</h3>
+<div class="comments-list">
+    {% for comment in comments.items %}
+    <div class="comment">
+        <div class="comment-meta">
+            {{ comment.author }} on {{ comment.created_utc.strftime('%Y-%m-%d %H:%M:%S') }}
+        </div>
+        {{ comment.body|markdown|safe }}
+    </div>
+    {% endfor %}
+</div>
+{% if comments.has_prev or comments.has_next %}
+<div class="comment-pagination">
+    {% if comments.has_prev %}
+    <a href="#" class="load-more-comments" data-post-id="{{ post.id }}" data-page="{{ comments.prev_num }}">Previous</a>
+    {% endif %}
+    <span>Page {{ comments.page }} of {{ comments.pages }}</span>
+    {% if comments.has_next %}
+    <a href="#" class="load-more-comments" data-post-id="{{ post.id }}" data-page="{{ comments.next_num }}">Next</a>
+    {% endif %}
+</div>
+{% endif %}

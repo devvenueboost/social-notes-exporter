@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saved Reddit Posts</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #fff;
+            border-radius: 5px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .post {
+            background-color: #fff;
+            border: 1px solid #e1e1e1;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .post-title {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .post-title a {
+            color: #2c3e50;
+            text-decoration: none;
+        }
+        .post-title a:hover {
+            text-decoration: underline;
+        }
+        .post-meta {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        .post-content {
+            margin-bottom: 20px;
+        }
+        .comment {
+            background-color: #f9f9f9;
+            border-left: 3px solid #3498db;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .comment-meta {
+            color: #7f8c8d;
+            font-size: 0.8em;
+            margin-bottom: 5px;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #3498db;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .post-content a, .comment a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        .post-content a:hover, .comment a:hover {
+            text-decoration: underline;
+        }
+        .comment-count {
+            font-size: 0.9em;
+            color: #7f8c8d;
+            margin-left: 10px;
+        }
+        .comment-icon {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%237f8c8d"><path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>') no-repeat center center;
+            background-size: contain;
+            vertical-align: middle;
+            margin-right: 5px;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .pagination a {
+            margin: 0 5px;
+            padding: 5px 10px;
+            border: 1px solid #3498db;
+            color: #3498db;
+            text-decoration: none;
+            border-radius: 3px;
+        }
+        .pagination a:hover {
+            background-color: #3498db;
+            color: white;
+        }
+        .pagination .active {
+            background-color: #3498db;
+            color: white;
+        }
+        .comment-pagination {
+            margin-top: 10px;
+        }
+        .comment-pagination a {
+            margin: 0 5px;
+            padding: 5px 10px;
+            border: 1px solid #3498db;
+            color: #3498db;
+            text-decoration: none;
+            border-radius: 3px;
+        }
+        .comment-pagination a:hover {
+            background-color: #3498db;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('dashboard') }}" class="back-link">← Back to Dashboard</a>
+        <h1>Saved Reddit Posts</h1>
+        {% for post in posts.items %}
+        <div class="post">
+            <h2 class="post-title">
+                <a href="{{ post.url }}" target="_blank">{{ post.title }}</a>
+                <span class="comment-count">
+                    <span class="comment-icon"></span>
+                    {{ post.comments|length }} comments
+                </span>
+            </h2>
+            <div class="post-meta">
+                Posted in r/{{ post.subreddit }} on {{ post.created_utc.strftime('%Y-%m-%d %H:%M:%S') }}
+            </div>
+            <div class="post-content">
+                {{ post.selftext|markdown|safe }}
+            </div>
+            <a href="{{ post.url }}" target="_blank">View on Reddit</a>
+            <div class="comments-container" id="comments-{{ post.id }}">
+                <h3>Comments:</h3>
+                <div class="comments-list">
+                    {% for comment in post.comments[:5] %}
+                    <div class="comment">
+                        <div class="comment-meta">
+                            {{ comment.author }} on {{ comment.created_utc.strftime('%Y-%m-%d %H:%M:%S') }}
+                        </div>
+                        {{ comment.body|markdown|safe }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if post.comments|length > 5 %}
+                <div class="comment-pagination">
+                    <a href="#" class="load-more-comments" data-post-id="{{ post.id }}" data-page="2">Load more comments</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <p>No saved posts found.</p>
+        {% endfor %}
+
+        <div class="pagination">
+            {% for page in posts.iter_pages(left_edge=2, left_current=2, right_current=3, right_edge=2) %}
+                {% if page %}
+                    {% if page != posts.page %}
+                        <a href="{{ url_for('list_posts', page=page) }}">{{ page }}</a>
+                    {% else %}
+                        <a class="active" href="#">{{ page }}</a>
+                    {% endif %}
+                {% else %}
+                    <span>...</span>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            // Use event delegation for dynamically loaded content
+            $(document).on('click', '.load-more-comments', function(e) {
+                e.preventDefault();
+                var postId = $(this).data('post-id');
+                var page = $(this).data('page');
+                var commentsContainer = $('#comments-' + postId);
+                
+                $.get('/post/' + postId + '/comments?page=' + page, function(data) {
+                    commentsContainer.html(data);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

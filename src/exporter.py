@@ -9,7 +9,9 @@ import tweepy
 from tweepy import TweepyException
 from docx import Document
 import os
-
+from src import db
+from src.models.models import RedditPost, RedditComment
+import hashlib
 
 def extract_links(text):
     url_pattern = r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
@@ -57,7 +59,8 @@ def get_saved_reddit_notes(reddit):
                             "author": comment.author.name if comment.author else '[deleted]',
                             "body": comment.body,
                             "links": comment_link_text,
-                            "created_utc": comment.created_utc
+                            "created_utc": comment.created_utc,
+                            "id": comment.id  # Make sure this line is present
                         })
                     saved_notes.append({
                         "type": "Submission",
@@ -179,10 +182,60 @@ def reddit_api():
         print("Attempting to save notes to Word document")
         filename = save_notes_to_word(reddit_notes, "reddit")
         print(f"Saved notes to file: {filename}")
+
+        # Save to database
+        try:
+            for note in reddit_notes:
+                if note['type'] == 'Submission':
+                    # Extract post ID from URL
+                    post_id = note['url'].split('/')[-3]
+                    existing_post = RedditPost.query.get(post_id)
+                    if not existing_post:
+                        post = RedditPost(
+                            id=post_id,
+                            title=note['title'],
+                            url=note['url'],
+                            selftext=note['body'],
+                            subreddit=note['subreddit'],
+                            created_utc=datetime.utcfromtimestamp(note['created_utc'])
+                        )
+                        db.session.add(post)
+                        db.session.flush()
+                        print(f"Added post {post_id} to database")
+
+                    if 'comments' in note:
+                        print(f"Found {len(note['comments'])} comments for post {post_id}")
+                        for comment in note['comments']:
+                            # Generate a unique ID for the comment
+                            comment_id = hashlib.md5(f"{post_id}_{comment['author']}_{comment['body']}".encode()).hexdigest()
+                            existing_comment = RedditComment.query.get(comment_id)
+                            if not existing_comment:
+                                db_comment = RedditComment(
+                                    id=comment_id,
+                                    post_id=post_id,
+                                    body=comment['body'],
+                                    author=comment['author'],
+                                    created_utc=datetime.utcfromtimestamp(comment['created_utc'])
+                                )
+                                db.session.add(db_comment)
+                                print(f"Added comment {comment_id} to post {post_id}")
+                            else:
+                                print(f"Comment {comment_id} already exists in database")
+                    else:
+                        print(f"No comments found for post {post_id}")
+
+            db.session.commit()
+            print("Saved posts and comments to database")
+        except Exception as e:
+            print(f"Error saving to database: {str(e)}")
+            print(traceback.format_exc())
+            db.session.rollback()
+
         return filename
     else:
         print("No notes found or error occurred while getting notes")
         return None
+
 def twitter_api(username):
     api = get_twitter_api()
     twitter_notes = get_twitter_posts(api, username)
