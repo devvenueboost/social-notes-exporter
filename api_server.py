@@ -5,6 +5,9 @@ from src.auth import refresh_token_if_needed
 import traceback
 import requests
 from bs4 import BeautifulSoup
+from src.models.models import SessionLocal, Post  # Updated import
+import uuid
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -73,10 +76,40 @@ def crawl_url(url):
     # Extract all text
     text = soup.get_text()
     
+    # Extract categories (example: assuming categories are in <meta> tags)
+    categories = [meta['content'] for meta in soup.find_all('meta', {'name': 'category'})]
+    
+    # Extract published time (example: assuming it's in a <time> tag)
+    published_time = soup.find('time')['datetime'] if soup.find('time') else "No published time found"
+    
+    # Extract WordPress posts
+    posts = []
+    for article in soup.find_all('article', class_='jeg_post'):
+        post_title = article.find('h3', class_='jeg_post_title')
+        post_title = post_title.get_text() if post_title else "No title"
+        
+        post_content_link = article.find('a', href=True)
+        post_content_link = post_content_link['href'] if post_content_link else "No link"
+        
+        post_date = article.find('div', class_='jeg_meta_date')
+        post_date = post_date.get_text().strip() if post_date else "No date"
+        
+        post_categories = [cat.get_text() for cat in article.find_all('a', class_='category-aktualitet')]
+        
+        posts.append({
+            "title": post_title,
+            "content_link": post_content_link,
+            "date": post_date,
+            "categories": post_categories
+        })
+    
     return {
         "title": title,
         "links": links,
-        "text": text
+        "text": text,
+        "categories": categories,
+        "published_time": published_time,
+        "posts": posts
     }
 
 @app.route('/crawl', methods=['POST'])
@@ -89,10 +122,52 @@ def crawl_website():
             return jsonify({"error": "URL is required"}), 400
 
         result = crawl_url(url)
+        
+        # Store the result in the database
+        db = SessionLocal()
+        for post_data in result['posts']:
+            post = Post(
+                id=str(uuid.uuid4()),
+                title=post_data['title'],
+                links=post_data['content_link'],
+                text="",  # Assuming we don't have the full content here
+                categories=str(post_data['categories']),
+                published_time=datetime.strptime(post_data['date'].strip(), '%H:%M %d/%m/%Y') if post_data['date'] != "No date" else None
+            )
+            db.add(post)
+        db.commit()
+        db.close()
 
         return jsonify({
             "status": "success",
             "data": result
+        })
+    except Exception as e:
+        error_message = f"An error occurred: {str(e)}\n{traceback.format_exc()}"
+        print(error_message)
+        return jsonify({"error": error_message}), 500
+
+import ast
+import html
+
+@app.route('/posts', methods=['GET'])
+def get_posts():
+    try:
+        db = SessionLocal()
+        posts = db.query(Post).all()
+        db.close()
+        
+        posts_data = [{
+            "id": post.id,
+            "title": post.title.strip() if post.title else "",
+            "text": html.escape(post.text.strip().replace('\n', ' ')) if post.text else "",
+            "categories": ast.literal_eval(post.categories) if post.categories else [],
+            "published_time": post.published_time
+        } for post in posts if post.title]
+
+        return jsonify({
+            "status": "success",
+            "data": posts_data
         })
     except Exception as e:
         error_message = f"An error occurred: {str(e)}\n{traceback.format_exc()}"
