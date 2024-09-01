@@ -5,9 +5,11 @@ from src.auth import refresh_token_if_needed
 import traceback
 import requests
 from bs4 import BeautifulSoup
-from src.models.models import SessionLocal, Post  # Updated import
+from src.models.models import SessionLocal, Post
 import uuid
 from datetime import datetime
+import ast
+import html
 
 app = Flask(__name__)
 
@@ -67,22 +69,12 @@ def crawl_url(url):
     response = requests.get(url)
     soup = BeautifulSoup(response.text, 'html.parser')
     
-    # Extract title
     title = soup.title.string if soup.title else "No title found"
-    
-    # Extract all links
     links = [a['href'] for a in soup.find_all('a', href=True)]
-    
-    # Extract all text
     text = soup.get_text()
-    
-    # Extract categories (example: assuming categories are in <meta> tags)
     categories = [meta['content'] for meta in soup.find_all('meta', {'name': 'category'})]
-    
-    # Extract published time (example: assuming it's in a <time> tag)
     published_time = soup.find('time')['datetime'] if soup.find('time') else "No published time found"
     
-    # Extract WordPress posts
     posts = []
     for article in soup.find_all('article', class_='jeg_post'):
         post_title = article.find('h3', class_='jeg_post_title')
@@ -123,14 +115,13 @@ def crawl_website():
 
         result = crawl_url(url)
         
-        # Store the result in the database
         db = SessionLocal()
         for post_data in result['posts']:
             post = Post(
                 id=str(uuid.uuid4()),
                 title=post_data['title'],
                 links=post_data['content_link'],
-                text="",  # Assuming we don't have the full content here
+                text="",
                 categories=str(post_data['categories']),
                 published_time=datetime.strptime(post_data['date'].strip(), '%H:%M %d/%m/%Y') if post_data['date'] != "No date" else None
             )
@@ -146,9 +137,6 @@ def crawl_website():
         error_message = f"An error occurred: {str(e)}\n{traceback.format_exc()}"
         print(error_message)
         return jsonify({"error": error_message}), 500
-
-import ast
-import html
 
 @app.route('/posts', methods=['GET'])
 def get_posts():
@@ -175,4 +163,4 @@ def get_posts():
         return jsonify({"error": error_message}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5001)
