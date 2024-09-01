@@ -1,3 +1,14 @@
 praw
 python-dotenv
 requests
+Flask
+Flask-SQLAlchemy
+markdown2
+python-docx
+SQLAlchemy
+alembic
+Werkzeug
+Jinja2
+MarkupSafe
+itsdangerous
+click
