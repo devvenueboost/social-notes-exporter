@@ -17,4 +17,4 @@ if __name__ == '__main__':
 
     # Run the main Flask app
     combined_app = create_combined_app()
-    combined_app.run(debug=True, port=5000)
+    combined_app.run(debug=True, port=5000, use_reloader=False, threaded=True)
